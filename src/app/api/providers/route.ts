@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
     description: body.description,
     hourlyRate: Number(body.hourlyRate),
     availability: body.availability,
-    rating: 0,
+    rating: 3.0,  // neutral starting rating; updated as reviews come in
     completedProjects: 0,
     createdAt: new Date().toISOString(),
   };

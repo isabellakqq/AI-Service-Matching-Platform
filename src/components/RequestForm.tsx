@@ -56,7 +56,7 @@ export default function RequestForm() {
       const data = await res.json();
       router.push(`/matches?requestId=${data.id}`);
     } catch {
-      setError('Something went wrong. Please try again.');
+      setError('Failed to submit request. Please check your connection and try again.');
     } finally {
       setLoading(false);
     }

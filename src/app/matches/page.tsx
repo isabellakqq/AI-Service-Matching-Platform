@@ -162,7 +162,7 @@ function MatchesContent() {
       {/* Empty state after run */}
       {!loading && matches.length === 0 && selectedRequestId && !error && (
         <div className="text-center py-16 text-slate-500">
-          <p className="text-lg font-medium">Click &ldquo;Run AI Matching&rdquo; above to see results</p>
+          <p className="text-lg font-medium">Click &quot;Run AI Matching&quot; above to see results</p>
         </div>
       )}
     </div>
