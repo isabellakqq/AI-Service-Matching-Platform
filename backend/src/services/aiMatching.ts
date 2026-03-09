@@ -1,9 +1,8 @@
-import OpenAI from 'openai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { config } from '../config/index.js';
 
-const openai = new OpenAI({
-  apiKey: config.openai.apiKey,
-});
+const genAI = new GoogleGenerativeAI(config.gemini.apiKey);
+const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
 
 export interface MatchingCriteria {
   interests?: string[];
@@ -129,22 +128,20 @@ Your role is to:
 
 Keep responses concise and friendly. ${companions ? `Here are available companions: ${JSON.stringify(companions.map(c => ({ name: c.name, title: c.title, activities: c.activities })))}` : ''}`;
 
-      const messages: any[] = [
-        { role: 'system', content: systemPrompt },
-        ...conversationHistory,
-        { role: 'user', content: userMessage },
-      ];
-
-      const response = await openai.chat.completions.create({
-        model: 'gpt-4-turbo-preview',
-        messages,
-        max_tokens: 200,
-        temperature: 0.7,
+      const chat = model.startChat({
+        history: conversationHistory.map(msg => ({
+          role: msg.role === 'assistant' ? 'model' : 'user',
+          parts: [{ text: msg.content }],
+        })),
+        systemInstruction: systemPrompt,
       });
 
-      return response.choices[0]?.message?.content || 'I\'m here to help you find the perfect companion!';
+      const result = await chat.sendMessage(userMessage);
+      const response = result.response;
+
+      return response.text() || 'I\'m here to help you find the perfect companion!';
     } catch (error) {
-      console.error('OpenAI API error:', error);
+      console.error('Gemini API error:', error);
       return 'I\'m having trouble processing that right now. Could you try rephrasing?';
     }
   }
@@ -156,7 +153,7 @@ Keep responses concise and friendly. ${companions ? `Here are available companio
     try {
       const prompt = `Extract the following information from this user request: "${userMessage}"
 
-Return a JSON object with these fields (only include if explicitly mentioned):
+Return ONLY a valid JSON object with these fields (only include if explicitly mentioned):
 - interests: array of interests/hobbies
 - personality: array of personality traits (e.g., "relaxed", "energetic", "thoughtful")
 - preferredTimes: array of time preferences (e.g., "morning", "afternoon", "evening", "weekend")
@@ -165,15 +162,11 @@ Return a JSON object with these fields (only include if explicitly mentioned):
 
 Example: {"interests": ["golf"], "personality": ["relaxed"], "preferredTimes": ["weekend"]}`;
 
-      const response = await openai.chat.completions.create({
-        model: 'gpt-4-turbo-preview',
-        messages: [{ role: 'user', content: prompt }],
-        max_tokens: 150,
-        temperature: 0.3,
-      });
-
-      const content = response.choices[0]?.message?.content || '{}';
-      return JSON.parse(content);
+      const result = await model.generateContent(prompt);
+      const content = result.response.text().trim();
+      // Strip markdown code fence if present
+      const jsonStr = content.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim();
+      return JSON.parse(jsonStr);
     } catch (error) {
       console.error('Error extracting preferences:', error);
       return {};
