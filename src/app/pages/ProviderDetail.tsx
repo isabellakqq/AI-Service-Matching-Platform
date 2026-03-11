@@ -1,53 +1,69 @@
 import { useParams, Link } from 'react-router';
-import { ArrowLeft, Star, Shield, Calendar, Heart, Clock, MessageCircle, CheckCircle, MapPin } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { ArrowLeft, Star, Shield, Calendar, Heart, Clock, MessageCircle, CheckCircle, MapPin, Loader2 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
+import api from '../../lib/api';
 
 export default function ProviderDetail() {
   const { id } = useParams();
+  const [companion, setCompanion] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-  const companion = {
-    name: 'Megan T.',
-    title: 'Weekend Golf Companion',
-    location: 'San Francisco, CA',
-    img: 'https://images.unsplash.com/photo-1718965018802-897e94ce7f15?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxmcmllbmRseSUyMHdvbWFuJTIwcG9ydHJhaXQlMjB3YXJtJTIwc21pbGUlMjBvdXRkb29yfGVufDF8fHx8MTc3MjQzMjUzMXww&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral',
-    matchScore: 94,
-    rating: 4.9,
-    reviews: 127,
-    rebook: '94%',
-    price: '$45',
-    responseTime: '< 30 min',
-    sessionsCompleted: 312,
-    memberSince: 'March 2024',
-    bio: 'I believe the best rounds of golf are the ones where the conversation is as good as the game. I play at a relaxed pace and enjoy getting to know people. Whether you\'re a scratch golfer or just starting out, I\'m here for good company first and birdie putts second.',
-    whyMatch: [
-      'Matches your relaxed, no-pressure pace',
-      'Available on weekend mornings — your preferred time',
-      'Similar personality energy and conversation style',
-      'Highly rated by people with similar preferences',
-    ],
-    activities: ['Golf (18 holes)', 'Driving Range', 'Coffee Walk', 'Dog Park'],
-    recentReviews: [
-      {
-        name: 'David L.',
-        rating: 5,
-        text: 'Megan made my first time golfing in years feel so comfortable. No judgment, just fun.',
-        date: '2 weeks ago',
-      },
-      {
-        name: 'Sandra W.',
-        rating: 5,
-        text: 'We ended up chatting for an hour after our round! Already rebooked for next weekend.',
-        date: '1 month ago',
-      },
-      {
-        name: 'Tom H.',
-        rating: 4,
-        text: 'Great companion. Very genuine and warm. Made the whole experience feel like hanging out with an old friend.',
-        date: '1 month ago',
-      },
-    ],
-  };
+  useEffect(() => {
+    if (!id) return;
+    api.getCompanion(id)
+      .then((data) => {
+        const c = data.companion || data;
+        setCompanion({
+          name: c.name,
+          title: c.title || 'Companion',
+          location: c.location || 'Available Online',
+          img: c.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(c.name)}&size=200&background=FDE2E4&color=E11D48`,
+          matchScore: c.matchingProfile?.matchScore || 90,
+          rating: c.averageRating ? Number(c.averageRating).toFixed(1) : '4.8',
+          reviews: c._count?.reviews || c.reviews?.length || 0,
+          rebook: '92%',
+          price: `$${c.hourlyRate || 40}`,
+          responseTime: '< 30 min',
+          sessionsCompleted: c._count?.bookings || 0,
+          memberSince: new Date(c.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+          bio: c.bio || c.description || 'This companion hasn\'t added a bio yet.',
+          whyMatch: [
+            'Great compatibility match',
+            'Available for your preferred times',
+            'Similar personality energy',
+            'Highly rated by other users',
+          ],
+          activities: c.activities?.map((a: any) => a.name) || ['Conversation', 'Walking', 'Coffee'],
+          recentReviews: (c.reviews || []).slice(0, 3).map((r: any) => ({
+            name: r.user?.name || 'Anonymous',
+            rating: r.rating,
+            text: r.comment || 'Great experience!',
+            date: new Date(r.createdAt).toLocaleDateString(),
+          })),
+        });
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, [id]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <Loader2 className="w-8 h-8 animate-spin text-rose-400" />
+      </div>
+    );
+  }
+
+  if (!companion) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-4">
+        <p className="text-gray-500">Companion not found</p>
+        <Link to="/app/providers" className="text-rose-500 hover:underline text-sm">← Back to companions</Link>
+      </div>
+    );
+  }
 
   return (
     <div className="h-full overflow-y-auto bg-[#FBF9F7]">
@@ -136,7 +152,7 @@ export default function ProviderDetail() {
           <div className="lg:col-span-2 space-y-4 md:space-y-6">
             {/* Bio */}
             <div className="bg-white rounded-2xl md:rounded-3xl border border-[#E8E4DF] p-4 md:p-6">
-              <h2 className="text-gray-900 mb-2 md:mb-3" style={{ fontSize: '15px', fontWeight: 600 }}>About Megan</h2>
+              <h2 className="text-gray-900 mb-2 md:mb-3" style={{ fontSize: '15px', fontWeight: 600 }}>About {companion.name}</h2>
               <p className="text-gray-600" style={{ fontSize: '14px', lineHeight: 1.7 }}>{companion.bio}</p>
             </div>
 

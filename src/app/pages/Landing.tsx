@@ -3,6 +3,8 @@ import { Link, useNavigate } from 'react-router';
 import { Heart, ArrowRight, Shield, Star, Users, Sparkles, Pencil, Plus, X, Mic, MicOff } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
+import AuthModal from '../components/AuthModal';
+import { useAuth } from '../../lib/auth';
 
 const moodTags = [
   { label: 'Relaxed', emoji: '😌' },
@@ -58,7 +60,10 @@ export default function Landing() {
   const [showUnderstanding, setShowUnderstanding] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [aiResponse, setAiResponse] = useState('');
+  const [authOpen, setAuthOpen] = useState(false);
+  const [authTab, setAuthTab] = useState<'login' | 'register'>('login');
   const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
 
   // Voice input state
   const [isListening, setIsListening] = useState(false);
@@ -236,14 +241,20 @@ export default function Landing() {
             <span className="text-gray-900" style={{ fontSize: '17px', fontWeight: 600 }}>Kindora</span>
           </div>
           <div className="flex items-center gap-2 md:gap-4">
-            <Link to="/app">
-              <Button variant="ghost" className="text-gray-500 hover:text-gray-900 hidden md:inline-flex" style={{ fontSize: '14px', fontWeight: 400 }}>Sign In</Button>
-            </Link>
-            <Link to="/app">
-              <Button className="bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-600 hover:to-amber-600 text-white rounded-2xl px-4 md:px-6 h-9 md:h-10" style={{ fontSize: '14px', fontWeight: 500 }}>
-                Get Started
-              </Button>
-            </Link>
+            {isAuthenticated ? (
+              <Link to="/app">
+                <Button className="bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-600 hover:to-amber-600 text-white rounded-2xl px-4 md:px-6 h-9 md:h-10" style={{ fontSize: '14px', fontWeight: 500 }}>
+                  Go to App
+                </Button>
+              </Link>
+            ) : (
+              <>
+                <Button variant="ghost" className="text-gray-500 hover:text-gray-900 hidden md:inline-flex" style={{ fontSize: '14px', fontWeight: 400 }} onClick={() => { setAuthTab('login'); setAuthOpen(true); }}>Sign In</Button>
+                <Button className="bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-600 hover:to-amber-600 text-white rounded-2xl px-4 md:px-6 h-9 md:h-10" style={{ fontSize: '14px', fontWeight: 500 }} onClick={() => { setAuthTab('register'); setAuthOpen(true); }}>
+                  Get Started
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </header>
@@ -508,6 +519,8 @@ export default function Landing() {
           <span>© 2026</span>
         </div>
       </footer>
+
+      <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} defaultTab={authTab} />
     </div>
   );
 }

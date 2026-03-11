@@ -1,78 +1,40 @@
 import { Link } from 'react-router';
-import { Star, Shield, Heart, Search } from 'lucide-react';
-import { useState } from 'react';
+import { Star, Shield, Heart, Search, Loader2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
+import api from '../../lib/api';
 
 export default function Providers() {
   const [searchQuery, setSearchQuery] = useState('');
+  const [companions, setCompanions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const companions = [
-    {
-      id: 1,
-      name: 'Megan T.',
-      title: 'Weekend Golf Companion',
-      desc: 'Relaxed pace, loves morning tee times, and great conversation on the course.',
-      img: 'https://images.unsplash.com/photo-1718965018802-897e94ce7f15?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxmcmllbmRseSUyMHdvbWFuJTIwcG9ydHJhaXQlMjB3YXJtJTIwc21pbGUlMjBvdXRkb29yfGVufDF8fHx8MTc3MjQzMjUzMXww&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral',
-      matchScore: 94,
-      rating: 4.9,
-      reviews: 127,
-      rebook: '94%',
-      price: '$45',
-      verified: true,
-    },
-    {
-      id: 2,
-      name: 'James R.',
-      title: 'Coffee Walk Partner',
-      desc: 'Easy-going listener, thoughtful, available weekday mornings.',
-      img: 'https://images.unsplash.com/photo-1764816657425-b3c79b616d14?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxmcmllbmRseSUyMG1hbiUyMHBvcnRyYWl0JTIwY2FzdWFsJTIwb3V0ZG9vciUyMHNtaWxlfGVufDF8fHx8MTc3MjQzMjUzMXww&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral',
-      matchScore: 91,
-      rating: 5.0,
-      reviews: 93,
-      rebook: '97%',
-      price: '$35',
-      verified: true,
-    },
-    {
-      id: 3,
-      name: 'Lily C.',
-      title: 'Kids Homework Mentor',
-      desc: 'Patient, encouraging, specializes in math & reading for ages 8–14.',
-      img: 'https://images.unsplash.com/photo-1673623703556-eafc6dd91c54?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxhc2lhbiUyMHdvbWFuJTIwcG9ydHJhaXQlMjB3YXJtJTIwZnJpZW5kbHklMjBuYXR1cmFsfGVufDF8fHx8MTc3MjQzMjUzMnww&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral',
-      matchScore: 89,
-      rating: 4.8,
-      reviews: 156,
-      rebook: '91%',
-      price: '$40',
-      verified: true,
-    },
-    {
-      id: 4,
-      name: 'Robert K.',
-      title: 'Dog Park Buddy',
-      desc: 'Loves dogs of all sizes. Calm, friendly, enjoys morning walks.',
-      img: 'https://images.unsplash.com/photo-1617746038583-9726a81f24b2?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxvbGRlciUyMG1hbiUyMHBvcnRyYWl0JTIwa2luZCUyMGdlbnRsZSUyMHNtaWxlfGVufDF8fHx8MTc3MjQzMjUzMnww&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral',
-      matchScore: 87,
-      rating: 4.9,
-      reviews: 84,
-      rebook: '93%',
-      price: '$30',
-      verified: true,
-    },
-    {
-      id: 5,
-      name: 'Sofia M.',
-      title: 'Travel Companion',
-      desc: 'Adventurous spirit, great planner, experienced in weekend day trips.',
-      img: 'https://images.unsplash.com/photo-1758467796950-1da4615c97b5?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHx5b3VuZyUyMHdvbWFuJTIwcG9ydHJhaXQlMjBuYXR1cmFsJTIwbGlnaHQlMjBoYXBweXxlbnwxfHx8fDE3NzI0MzI1MzJ8MA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral',
-      matchScore: 85,
-      rating: 4.7,
-      reviews: 68,
-      rebook: '88%',
-      price: '$50',
-      verified: true,
-    },
-  ];
+  useEffect(() => {
+    api.getCompanions()
+      .then((data) => {
+        const mapped = (data.companions || []).map((c: any) => ({
+          id: c.id,
+          name: c.name,
+          title: c.title || 'Companion',
+          desc: c.bio || c.description || '',
+          img: c.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(c.name)}&size=200&background=FDE2E4&color=E11D48`,
+          matchScore: c.matchingProfile?.matchScore || Math.floor(Math.random() * 10 + 85),
+          rating: c.averageRating ? Number(c.averageRating).toFixed(1) : '4.8',
+          reviews: c._count?.reviews || 0,
+          rebook: '92%',
+          price: `$${c.hourlyRate || 40}`,
+          verified: true,
+        }));
+        setCompanions(mapped);
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, []);
+
+  const filtered = companions.filter(c =>
+    !searchQuery || c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    c.title.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
     <div className="h-full overflow-y-auto">
@@ -99,7 +61,16 @@ export default function Providers() {
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-2 xl:grid-cols-3 gap-3 md:gap-6">
-          {companions.map((companion) => (
+          {loading ? (
+            <div className="col-span-full flex items-center justify-center py-12">
+              <Loader2 className="w-6 h-6 animate-spin text-rose-400" />
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="col-span-full text-center py-12 text-gray-400">
+              <p className="text-sm">No companions found</p>
+            </div>
+          ) : (
+          filtered.map((companion) => (
             <Link key={companion.id} to={`/app/providers/${companion.id}`} className="group">
               <div className="bg-white rounded-2xl md:rounded-3xl border border-[#E8E4DF] p-3.5 md:p-6 hover:border-rose-200 hover:shadow-xl hover:shadow-rose-500/5 transition-all text-center active:scale-[0.98]">
                 <div className="w-14 h-14 md:w-20 md:h-20 rounded-full overflow-hidden mx-auto mb-3 md:mb-4 ring-2 md:ring-3 ring-rose-50">
@@ -144,7 +115,8 @@ export default function Providers() {
                 </div>
               </div>
             </Link>
-          ))}
+          ))
+          )}
         </div>
       </div>
     </div>

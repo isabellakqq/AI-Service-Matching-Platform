@@ -1,11 +1,14 @@
-import { Outlet, Link, useLocation } from 'react-router';
-import { LayoutDashboard, Heart, Users, Brain, Settings as SettingsIcon, MessageCircle } from 'lucide-react';
+import { Outlet, Link, useLocation, useNavigate } from 'react-router';
+import { LayoutDashboard, Heart, Users, Brain, Settings as SettingsIcon, MessageCircle, LogOut } from 'lucide-react';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import { useIsMobile } from './ui/use-mobile';
+import { useAuth } from '../../lib/auth';
 
 export default function AppLayout() {
   const location = useLocation();
+  const navigate = useNavigate();
   const isMobile = useIsMobile();
+  const { user, logout, isAuthenticated } = useAuth();
 
   const navigation = [
     { name: 'Home', href: '/app', icon: LayoutDashboard, exact: true },
@@ -99,17 +102,26 @@ export default function AppLayout() {
         {/* User Profile */}
         <div className="px-4 py-4 border-t border-[#F0EDE8]">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full overflow-hidden ring-2 ring-rose-100">
-              <ImageWithFallback
-                src="https://images.unsplash.com/photo-1617746038583-9726a81f24b2?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxvbGRlciUyMG1hbiUyMHBvcnRyYWl0JTIwa2luZCUyMGdlbnRsZSUyMHNtaWxlfGVufDF8fHx8MTc3MjQzMjUzMnww&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral"
-                alt="Profile"
-                className="w-full h-full object-cover"
-              />
+            <div className="w-9 h-9 rounded-full overflow-hidden ring-2 ring-rose-100 bg-gradient-to-br from-rose-200 to-amber-200 flex items-center justify-center flex-shrink-0">
+              {user?.avatar ? (
+                <ImageWithFallback
+                  src={user.avatar}
+                  alt="Profile"
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <span className="text-rose-700 text-sm font-semibold">{(user?.name || 'U')[0].toUpperCase()}</span>
+              )}
             </div>
             <div className="flex-1 min-w-0">
-              <div className="text-gray-900 truncate" style={{ fontSize: '14px', fontWeight: 500 }}>Alex</div>
-              <div className="text-gray-400 truncate" style={{ fontSize: '12px' }}>San Francisco</div>
+              <div className="text-gray-900 truncate" style={{ fontSize: '14px', fontWeight: 500 }}>{user?.name || 'Guest'}</div>
+              <div className="text-gray-400 truncate" style={{ fontSize: '12px' }}>{user?.email || ''}</div>
             </div>
+            {isAuthenticated && (
+              <button onClick={() => { logout(); navigate('/'); }} className="text-gray-400 hover:text-gray-600 p-1" title="Sign out">
+                <LogOut className="w-4 h-4" />
+              </button>
+            )}
           </div>
         </div>
       </aside>

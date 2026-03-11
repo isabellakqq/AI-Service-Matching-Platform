@@ -1,6 +1,7 @@
-const API_BASE = import.meta.env.PROD
-  ? 'https://api.kindoraai.com'
-  : 'http://localhost:3000';
+const API_BASE = import.meta.env.VITE_API_URL
+  || (import.meta.env.PROD
+    ? 'https://ai-service-matching-backend-production.up.railway.app'
+    : 'http://localhost:3000');
 
 interface RequestOptions {
   method?: string;
