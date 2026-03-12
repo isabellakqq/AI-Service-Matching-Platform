@@ -1,9 +1,87 @@
-import { User, Bell, Lock, Heart } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { User, Bell, Lock, Heart, Loader2, Check } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Switch } from '../components/ui/switch';
+import { useAuth } from '../../lib/auth';
+import api from '../../lib/api';
 
 export default function Settings() {
+  const { user, isAuthenticated } = useAuth();
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [email, setEmail] = useState('');
+  const [location, setLocation] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [selectedActivities, setSelectedActivities] = useState<string[]>([]);
+  const [energyLevel, setEnergyLevel] = useState('Relaxed & Low-key');
+  const [preferredTime, setPreferredTime] = useState('Weekend Mornings');
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setLoading(false);
+      return;
+    }
+    api.getProfile()
+      .then((data) => {
+        const u = data.user || data;
+        const names = (u.name || '').split(' ');
+        setFirstName(names[0] || '');
+        setLastName(names.slice(1).join(' ') || '');
+        setEmail(u.email || '');
+        setLocation(u.location || '');
+        if (u.preferences) {
+          setSelectedActivities(u.preferences.preferredActivities || []);
+          setEnergyLevel(u.preferences.personality?.[0] || 'Relaxed & Low-key');
+          setPreferredTime(u.preferences.preferredTimes?.[0] || 'Weekend Mornings');
+        }
+      })
+      .catch(() => {
+        if (user) {
+          const names = (user.name || '').split(' ');
+          setFirstName(names[0] || '');
+          setLastName(names.slice(1).join(' ') || '');
+          setEmail(user.email || '');
+        }
+      })
+      .finally(() => setLoading(false));
+  }, [isAuthenticated, user]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    setSaved(false);
+    try {
+      await api.updateProfile({ name: `${firstName} ${lastName}`.trim() });
+      await api.updatePreferences({
+        preferredActivities: selectedActivities,
+        personality: [energyLevel],
+        preferredTimes: [preferredTime],
+      });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch (err) {
+      console.error('Save failed:', err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const toggleActivity = (activity: string) => {
+    setSelectedActivities(prev =>
+      prev.includes(activity) ? prev.filter(a => a !== activity) : [...prev, activity]
+    );
+  };
+
+  if (loading) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-rose-400" />
+      </div>
+    );
+  }
+
   return (
     <div className="h-full overflow-y-auto">
       {/* Header */}
@@ -30,23 +108,24 @@ export default function Settings() {
               <div className="grid grid-cols-2 gap-3 md:gap-4">
                 <div>
                   <label className="block text-gray-600 mb-1.5" style={{ fontSize: '12px', fontWeight: 500 }}>First Name</label>
-                  <Input defaultValue="Alex" className="bg-[#F7F5F2] border-[#E8E4DF] rounded-xl h-10" />
+                  <Input value={firstName} onChange={(e) => setFirstName(e.target.value)} className="bg-[#F7F5F2] border-[#E8E4DF] rounded-xl h-10" />
                 </div>
                 <div>
                   <label className="block text-gray-600 mb-1.5" style={{ fontSize: '12px', fontWeight: 500 }}>Last Name</label>
-                  <Input defaultValue="Morgan" className="bg-[#F7F5F2] border-[#E8E4DF] rounded-xl h-10" />
+                  <Input value={lastName} onChange={(e) => setLastName(e.target.value)} className="bg-[#F7F5F2] border-[#E8E4DF] rounded-xl h-10" />
                 </div>
               </div>
               <div>
                 <label className="block text-gray-600 mb-1.5" style={{ fontSize: '12px', fontWeight: 500 }}>Email</label>
-                <Input defaultValue="alex@email.com" className="bg-[#F7F5F2] border-[#E8E4DF] rounded-xl h-10" />
+                <Input value={email} onChange={(e) => setEmail(e.target.value)} className="bg-[#F7F5F2] border-[#E8E4DF] rounded-xl h-10" disabled />
               </div>
               <div>
                 <label className="block text-gray-600 mb-1.5" style={{ fontSize: '12px', fontWeight: 500 }}>Location</label>
-                <Input defaultValue="San Francisco, CA" className="bg-[#F7F5F2] border-[#E8E4DF] rounded-xl h-10" />
+                <Input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g. San Francisco, CA" className="bg-[#F7F5F2] border-[#E8E4DF] rounded-xl h-10" />
               </div>
-              <Button className="bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-600 hover:to-amber-600 text-white rounded-xl w-full md:w-auto">
-                Save Changes
+              <Button onClick={handleSave} disabled={saving} className="bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-600 hover:to-amber-600 text-white rounded-xl w-full md:w-auto">
+                {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : saved ? <Check className="w-4 h-4 mr-2" /> : null}
+                {saved ? 'Saved!' : saving ? 'Saving...' : 'Save Changes'}
               </Button>
             </div>
           </div>
@@ -70,7 +149,8 @@ export default function Settings() {
                   {['Golf', 'Coffee Walks', 'Dog Park', 'Travel', 'Tutoring', 'Conversation'].map((activity) => (
                     <button
                       key={activity}
-                      className="px-3 md:px-4 py-1.5 md:py-2 bg-[#F7F5F2] border border-[#E8E4DF] rounded-lg md:rounded-xl text-gray-700 hover:border-rose-300 hover:bg-rose-50 transition-all cursor-pointer active:scale-95"
+                      onClick={() => toggleActivity(activity)}
+                      className={`px-3 md:px-4 py-1.5 md:py-2 rounded-lg md:rounded-xl transition-all cursor-pointer active:scale-95 ${selectedActivities.includes(activity) ? 'bg-rose-50 border border-rose-300 text-rose-600 font-medium' : 'bg-[#F7F5F2] border border-[#E8E4DF] text-gray-700 hover:border-rose-300 hover:bg-rose-50'}`}
                       style={{ fontSize: '13px' }}
                     >
                       {activity}
@@ -80,7 +160,7 @@ export default function Settings() {
               </div>
               <div>
                 <label className="block text-gray-600 mb-1.5" style={{ fontSize: '12px', fontWeight: 500 }}>Energy Level</label>
-                <select className="w-full px-3 md:px-4 py-2.5 bg-[#F7F5F2] border border-[#E8E4DF] rounded-xl text-gray-900 outline-none" style={{ fontSize: '14px' }}>
+                <select value={energyLevel} onChange={(e) => setEnergyLevel(e.target.value)} className="w-full px-3 md:px-4 py-2.5 bg-[#F7F5F2] border border-[#E8E4DF] rounded-xl text-gray-900 outline-none" style={{ fontSize: '14px' }}>
                   <option>Relaxed & Low-key</option>
                   <option>Moderate & Balanced</option>
                   <option>Active & Energetic</option>
@@ -88,7 +168,7 @@ export default function Settings() {
               </div>
               <div>
                 <label className="block text-gray-600 mb-1.5" style={{ fontSize: '12px', fontWeight: 500 }}>Preferred Times</label>
-                <select className="w-full px-3 md:px-4 py-2.5 bg-[#F7F5F2] border border-[#E8E4DF] rounded-xl text-gray-900 outline-none" style={{ fontSize: '14px' }}>
+                <select value={preferredTime} onChange={(e) => setPreferredTime(e.target.value)} className="w-full px-3 md:px-4 py-2.5 bg-[#F7F5F2] border border-[#E8E4DF] rounded-xl text-gray-900 outline-none" style={{ fontSize: '14px' }}>
                   <option>Weekend Mornings</option>
                   <option>Weekday Mornings</option>
                   <option>Afternoons</option>

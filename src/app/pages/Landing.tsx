@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link, useNavigate } from 'react-router';
-import { Heart, ArrowRight, Shield, Star, Users, Sparkles, Pencil, Plus, X, Mic, MicOff } from 'lucide-react';
+import { Heart, ArrowRight, Shield, Star, Users, Sparkles, Pencil, Plus, X, Mic, MicOff, Loader2 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
 import AuthModal from '../components/AuthModal';
 import { useAuth } from '../../lib/auth';
+import api from '../../lib/api';
 
 const moodTags = [
   { label: 'Relaxed', emoji: '😌' },
@@ -62,6 +63,10 @@ export default function Landing() {
   const [aiResponse, setAiResponse] = useState('');
   const [authOpen, setAuthOpen] = useState(false);
   const [authTab, setAuthTab] = useState<'login' | 'register'>('login');
+  const [aiLoading, setAiLoading] = useState(false);
+  const [recommendations, setRecommendations] = useState<any[]>([]);
+  const [extractedPreferences, setExtractedPreferences] = useState<any>({});
+  const [featuredCompanions, setFeaturedCompanions] = useState<any[]>([]);
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
 
@@ -75,6 +80,25 @@ export default function Landing() {
   // Check browser support
   useEffect(() => {
     setVoiceSupported(!!SpeechRecognition);
+  }, []);
+
+  // Load real companions for featured section
+  useEffect(() => {
+    api.getCompanions()
+      .then((data) => {
+        const mapped = (data.companions || []).map((c: any) => ({
+          id: c.id,
+          name: c.name,
+          title: c.title || 'Companion',
+          desc: c.description || '',
+          img: c.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(c.name)}&size=200&background=FDE2E4&color=E11D48`,
+          rating: c.rating || 4.8,
+          rebook: `${c.rebookRate || 92}%`,
+          price: `$${c.price || 40}`,
+        }));
+        if (mapped.length > 0) setFeaturedCompanions(mapped);
+      })
+      .catch(() => {});
   }, []);
 
   // Setup SpeechRecognition instance
@@ -168,29 +192,53 @@ export default function Landing() {
     }
   }, [isListening, query]);
 
-  // Debounced AI parsing
+  // Debounced AI matching via backend
   useEffect(() => {
-    if (query.trim().length < 5) {
+    const text = query.trim();
+    if (text.length < 3 && selectedMoods.length === 0) {
       setParsedTags([]);
       setShowUnderstanding(false);
       setAiResponse('');
+      setRecommendations([]);
+      setExtractedPreferences({});
       return;
     }
-    const timer = setTimeout(() => {
-      const tags = parseIntent(query);
-      setParsedTags(tags);
-      setShowUnderstanding(true);
-      setAiResponse(getAiResponse(tags, selectedMoods));
-    }, 600);
+    const timer = setTimeout(async () => {
+      const moodSuffix = selectedMoods.length > 0
+        ? '. I prefer a ' + selectedMoods.join(', ').toLowerCase() + ' vibe.'
+        : '';
+      const fullMessage = (text || 'Find me a companion') + moodSuffix;
+
+      setAiLoading(true);
+      try {
+        const data = await api.sendAIMessage(fullMessage, []);
+        setAiResponse(data.response);
+        setExtractedPreferences(data.extractedPreferences || {});
+        setRecommendations(data.recommendations || []);
+
+        // Build display tags from extracted preferences
+        const tags: string[] = [];
+        const prefs = data.extractedPreferences || {};
+        if (prefs.interests) tags.push(...prefs.interests.map((i: string) => i.charAt(0).toUpperCase() + i.slice(1)));
+        if (prefs.activity && !tags.some(t => t.toLowerCase() === prefs.activity.toLowerCase())) {
+          tags.push(prefs.activity.charAt(0).toUpperCase() + prefs.activity.slice(1));
+        }
+        if (prefs.preferredTimes) tags.push(...prefs.preferredTimes.map((t: string) => t.charAt(0).toUpperCase() + t.slice(1)));
+        if (prefs.budget) tags.push(`Budget: $${prefs.budget}`);
+        setParsedTags(tags.length > 0 ? [...new Set(tags)] : parseIntent(text));
+        setShowUnderstanding(true);
+      } catch (err) {
+        // Fallback to local parsing
+        const tags = parseIntent(text);
+        setParsedTags(tags);
+        setShowUnderstanding(tags.length > 0 || selectedMoods.length > 0);
+        setAiResponse(getAiResponse(tags, selectedMoods));
+      } finally {
+        setAiLoading(false);
+      }
+    }, 800);
     return () => clearTimeout(timer);
   }, [query, selectedMoods]);
-
-  useEffect(() => {
-    if (showUnderstanding || selectedMoods.length > 0) {
-      setAiResponse(getAiResponse(parsedTags, selectedMoods));
-      if (selectedMoods.length > 0) setShowUnderstanding(true);
-    }
-  }, [selectedMoods]);
 
   const toggleMood = useCallback((mood: string) => {
     setSelectedMoods(prev =>
@@ -209,7 +257,7 @@ export default function Landing() {
     }
   }, []);
 
-  const hasIntent = showUnderstanding && (parsedTags.length > 0 || selectedMoods.length > 0);
+  const hasIntent = aiLoading || (showUnderstanding && (parsedTags.length > 0 || selectedMoods.length > 0));
 
   return (
     <div className="min-h-screen bg-[#FBF9F7]" style={{ fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
@@ -353,7 +401,10 @@ export default function Landing() {
             <div className="mx-5 md:mx-8 mb-4 md:mb-5 animate-in fade-in slide-in-from-bottom-2 duration-300">
               <div className="bg-[#F7F5F2] rounded-2xl p-4 md:p-5 border border-[#E8E4DF]/50">
                 <div className="flex items-center justify-between mb-3">
-                  <span className="text-gray-500" style={{ fontSize: '13px', fontWeight: 500 }}>Looking for:</span>
+                  <span className="text-gray-500 flex items-center gap-2" style={{ fontSize: '13px', fontWeight: 500 }}>
+                    {aiLoading && <Loader2 className="w-3.5 h-3.5 animate-spin text-rose-400" />}
+                    {aiLoading ? 'Understanding...' : 'Looking for:'}
+                  </span>
                   <div className="flex items-center gap-1.5">
                     <button
                       onClick={() => setIsEditing(!isEditing)}
@@ -434,25 +485,34 @@ export default function Landing() {
 
           {/* AI Response + CTA */}
           <div className="px-5 md:px-8 pb-5 md:pb-8">
-            {aiResponse && (
+            {(aiResponse || aiLoading) && (
               <div className="mb-4 md:mb-5">
                 <div className="flex items-start gap-2.5">
                   <div className="w-6 h-6 bg-gradient-to-br from-rose-400 to-amber-400 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
                     <Heart className="w-3 h-3 text-white" />
                   </div>
-                  <p className="text-gray-600" style={{ fontSize: '14px', lineHeight: 1.6, fontWeight: 400 }}>
-                    {aiResponse}
-                  </p>
+                  {aiLoading ? (
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin text-rose-400" />
+                      <span className="text-gray-400" style={{ fontSize: '14px' }}>Finding your perfect match...</span>
+                    </div>
+                  ) : (
+                    <p className="text-gray-600" style={{ fontSize: '14px', lineHeight: 1.6, fontWeight: 400 }}>
+                      {aiResponse}
+                    </p>
+                  )}
                 </div>
               </div>
             )}
 
             <Button
-              onClick={() => navigate('/app')}
+              onClick={() => navigate('/app', { state: { query, preferences: extractedPreferences, recommendations, moods: selectedMoods } })}
+              disabled={aiLoading}
               className="w-full bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-600 hover:to-amber-600 text-white rounded-2xl h-12 md:h-14 shadow-lg shadow-rose-500/10"
               style={{ fontSize: '16px', fontWeight: 500 }}
             >
-              Find My Match
+              {aiLoading && <Loader2 className="w-5 h-5 animate-spin mr-2" />}
+              {recommendations.length > 0 ? `View ${recommendations.length} Matches` : 'Find My Match'}
               <ArrowRight className="w-4 h-4 ml-2" />
             </Button>
           </div>
@@ -494,13 +554,13 @@ export default function Landing() {
         </p>
 
         <div className="hidden md:grid md:grid-cols-3 gap-8">
-          {companionPreviews.map((companion) => (
+          {(featuredCompanions.length > 0 ? featuredCompanions.slice(0, 3) : companionPreviews).map((companion) => (
             <CompanionPreviewCard key={companion.name} companion={companion} />
           ))}
         </div>
         <div className="md:hidden -mx-4 px-4 overflow-x-auto">
           <div className="flex gap-4" style={{ width: 'max-content' }}>
-            {companionPreviews.map((companion) => (
+            {(featuredCompanions.length > 0 ? featuredCompanions.slice(0, 3) : companionPreviews).map((companion) => (
               <div key={companion.name} className="w-[280px] flex-shrink-0">
                 <CompanionPreviewCard companion={companion} />
               </div>
@@ -555,9 +615,9 @@ const companionPreviews = [
   },
 ];
 
-function CompanionPreviewCard({ companion }: { companion: typeof companionPreviews[0] }) {
+function CompanionPreviewCard({ companion }: { companion: any }) {
   return (
-    <Link to="/app" className="group block">
+    <Link to={companion.id ? `/app/providers/${companion.id}` : '/app'} className="group block">
       <div className="bg-white rounded-3xl border border-[#E8E4DF] p-5 md:p-6 hover:shadow-xl hover:shadow-rose-500/5 hover:border-rose-200 transition-all text-center active:scale-[0.98]">
         <div className="w-20 h-20 md:w-24 md:h-24 rounded-full overflow-hidden mx-auto mb-4 md:mb-5 ring-4 ring-rose-50">
           <ImageWithFallback

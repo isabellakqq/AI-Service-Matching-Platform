@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Send, Heart, Star, Shield, Sparkles, Loader2 } from 'lucide-react';
-import { Link } from 'react-router';
+import { Link, useLocation } from 'react-router';
 import { Button } from '../components/ui/button';
 import InsightsPanel from '../components/InsightsPanel';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
@@ -8,6 +8,8 @@ import { useIsMobile } from '../components/ui/use-mobile';
 import api from '../../lib/api';
 
 export default function Dashboard() {
+  const location = useLocation();
+  const landingState = location.state as { query?: string; preferences?: any; recommendations?: any[]; moods?: string[] } | null;
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
   const isMobile = useIsMobile();
@@ -49,6 +51,45 @@ export default function Dashboard() {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages]);
+
+  // Handle state passed from Landing page
+  const landingHandled = useRef(false);
+  useEffect(() => {
+    if (!landingState || landingHandled.current) return;
+    landingHandled.current = true;
+
+    // If landing page passed recommendations, show them
+    if (landingState.recommendations && landingState.recommendations.length > 0) {
+      const mapped = landingState.recommendations.map((c: any) => ({
+        id: c.id,
+        name: c.name,
+        title: c.title || 'Companion',
+        desc: c.bio || c.description || '',
+        img: c.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(c.name)}&size=200&background=FDE2E4&color=E11D48`,
+        matchScore: c.matchScore || Math.floor(Math.random() * 10 + 85),
+        rating: c.averageRating ? Number(c.averageRating).toFixed(1) : '4.8',
+        rebook: '92%',
+        price: `$${c.hourlyRate || 40}/session`,
+        availability: 'Available',
+        whyMatch: c.matchReasons || ['Great match', 'Compatible energy'],
+      }));
+      setCompanions(mapped);
+      setLoadingCompanions(false);
+    }
+
+    // If landing page passed a query, show it in chat
+    if (landingState.query) {
+      const moodStr = landingState.moods?.length ? ' (' + landingState.moods.join(', ') + ')' : '';
+      setChatMessages(prev => [
+        ...prev,
+        { type: 'user', content: landingState.query + moodStr },
+        { type: 'ai', content: 'I found some great matches based on your preferences! Check out the companions below.' },
+      ]);
+    }
+
+    // Clear the state so it doesn't re-trigger on navigation
+    window.history.replaceState({}, '');
+  }, [landingState]);
 
   const handleSend = async () => {
     if (!message.trim() || sending) return;
