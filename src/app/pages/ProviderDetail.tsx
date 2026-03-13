@@ -4,11 +4,19 @@ import { ArrowLeft, Star, Shield, Calendar, Heart, Clock, MessageCircle, CheckCi
 import { Button } from '../components/ui/button';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
 import api from '../../lib/api';
+import { useAuth } from '../../lib/auth';
+import AuthModal from '../components/AuthModal';
+import BookingModal from '../components/BookingModal';
+import { toast } from 'sonner';
 
 export default function ProviderDetail() {
   const { id } = useParams();
   const [companion, setCompanion] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [showBookingModal, setShowBookingModal] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [pendingBooking, setPendingBooking] = useState(false);
+  const { isAuthenticated } = useAuth();
 
   useEffect(() => {
     if (!id) return;
@@ -47,6 +55,38 @@ export default function ProviderDetail() {
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [id]);
+
+  // When user logs in after clicking "Book Session", auto-open booking modal
+  useEffect(() => {
+    if (pendingBooking && isAuthenticated) {
+      setPendingBooking(false);
+      setShowAuthModal(false);
+      setShowBookingModal(true);
+    }
+  }, [isAuthenticated, pendingBooking]);
+
+  const handleBookClick = () => {
+    if (!isAuthenticated) {
+      setPendingBooking(true);
+      setShowAuthModal(true);
+    } else {
+      setShowBookingModal(true);
+    }
+  };
+
+  const handleBook = async (data: {
+    companionId: string;
+    activity: string;
+    location?: string;
+    scheduledAt: string;
+    duration: number;
+    notes?: string;
+  }) => {
+    await api.createBooking(data);
+    toast.success('Session booked successfully!', {
+      description: `Your session with ${companion.name} has been confirmed.`,
+    });
+  };
 
   if (loading) {
     return (
@@ -110,7 +150,7 @@ export default function ProviderDetail() {
                 <MessageCircle className="w-4 h-4 mr-1.5" />
                 Message
               </Button>
-              <Button className="flex-1 bg-gradient-to-r from-rose-500 to-amber-500 text-white rounded-xl h-10" style={{ fontSize: '14px' }}>
+              <Button className="flex-1 bg-gradient-to-r from-rose-500 to-amber-500 text-white rounded-xl h-10" style={{ fontSize: '14px' }} onClick={handleBookClick}>
                 <Calendar className="w-4 h-4 mr-1.5" />
                 Book Session
               </Button>
@@ -120,7 +160,7 @@ export default function ProviderDetail() {
                 <MessageCircle className="w-4 h-4 mr-2" />
                 Message
               </Button>
-              <Button className="bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-600 hover:to-amber-600 text-white rounded-2xl px-6">
+              <Button className="bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-600 hover:to-amber-600 text-white rounded-2xl px-6" onClick={handleBookClick}>
                 <Calendar className="w-4 h-4 mr-2" />
                 Book Session
               </Button>
@@ -209,7 +249,7 @@ export default function ProviderDetail() {
                 {companion.price}<span className="text-gray-400" style={{ fontSize: '14px', fontWeight: 400 }}>/session</span>
               </div>
               <p className="text-gray-400 mb-4" style={{ fontSize: '12px' }}>Flexible scheduling</p>
-              <Button className="w-full bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-600 hover:to-amber-600 text-white rounded-xl md:rounded-2xl h-11 md:h-12">
+              <Button className="w-full bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-600 hover:to-amber-600 text-white rounded-xl md:rounded-2xl h-11 md:h-12" onClick={handleBookClick}>
                 Book Session
               </Button>
             </div>
@@ -270,6 +310,28 @@ export default function ProviderDetail() {
           </div>
         </div>
       </div>
+
+      {/* Auth Modal */}
+      <AuthModal
+        open={showAuthModal}
+        onClose={() => { setShowAuthModal(false); setPendingBooking(false); }}
+        defaultTab="login"
+      />
+
+      {/* Booking Modal */}
+      {companion && (
+        <BookingModal
+          open={showBookingModal}
+          onClose={() => setShowBookingModal(false)}
+          companion={{
+            id: id!,
+            name: companion.name,
+            price: companion.price,
+            activities: companion.activities,
+          }}
+          onBook={handleBook}
+        />
+      )}
     </div>
   );
 }
